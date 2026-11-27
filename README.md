@@ -1,4 +1,4 @@
-# vi-3080: R4GE tuned for an RTX 3080
+# vi-3080: VIctory-NVIDIA tuned for an RTX 3080
 
 This branch (`vi-3080`) is a fork of
 [trustno1-coder/VIctory-NVIDIA](https://github.com/trustno1-coder/VIctory-NVIDIA),
@@ -19,8 +19,8 @@ The upstream README follows further down, under
 
 - [What you need](#what-you-need)
 - [First-time setup](#first-time-setup)
+- [Building the shaders before you play](#building-the-shaders-before-you-play)
 - [Playing](#playing)
-- [Making the stutter go away (warming up)](#making-the-stutter-go-away-warming-up)
 - [Launcher options](#launcher-options)
 - [What vi-3080 changes, and why](#what-vi-3080-changes-and-why)
 - [How it runs](#how-it-runs)
@@ -77,6 +77,9 @@ again. It does six things:
 | `-NoDlssdFix` | don't add the DLSS SDK's `nvngx_dlssd.dll` |
 | `-Play` | start the game when setup is done |
 
+Next, build the game's shaders before playing properly (below). Without this,
+the game stutters badly for a long time.
+
 <details>
 <summary>Setting up by hand instead</summary>
 
@@ -92,6 +95,51 @@ cargo build --release --locked -p victory
 ```
 
 </details>
+
+## Building the shaders before you play
+
+Do this once after setup. It's the difference between a stuttery mess and a
+playable game.
+
+The game makes tens of thousands of shader pipelines. If the NVIDIA driver has
+to compile them while you play, the game stutters constantly and drops to 1 fps
+whenever something new appears. The launcher writes down every pipeline the
+game makes, so one short run is enough to list them all. Then `warm` compiles
+the whole list ahead of time.
+
+1. **Start the game once, to record its pipelines.** Get into the open world,
+   wait a minute or two and close it. Expect it to be very slow and stuttery
+   this time.
+
+   ```powershell
+   cd "$HOME\VI-3080"
+   powershell -ExecutionPolicy Bypass -File scripts\play-3080.ps1
+   ```
+
+2. **Build them all.** On the PC this was tuned on, there were about 83,000
+   pipelines, and it takes a long time. Let it finish. If you stop it (Ctrl+C),
+   running the same command again carries on where it left off.
+
+   ```powershell
+   cd "$HOME\VI-3080"
+   $env:VICTORY_HOST_WAVE = '32'
+   target\release\victory.exe warm
+   ```
+
+3. **Play** (below). The first minute after loading can still hitch a little
+   while the driver loads its cache. After that it should be smooth apart from
+   the game's own frame rate.
+
+When to do it again:
+
+| After | Run |
+|---|---|
+| a rebuild that changes the shader translator, or a driver update | `target\release\victory.exe warm` (it notices and redoes them) |
+| moving or renaming the repository folder | `target\release\victory.exe warm --again` (the driver keeps its pipelines per program path) |
+| a build of the diagnostics version | `target\diag\victory.exe warm --again` (another program path) |
+
+`warm --used` builds only the pipelines your runs have actually drawn with.
+It's quicker, but anything new still stutters the first time.
 
 ## Playing
 
@@ -120,23 +168,6 @@ rate cap.
 - **Settings from the F1 menu** are saved in `victory-settings.txt` and
   applied at every start, over the launcher's options. Delete that file to go
   back to the defaults.
-
-## Making the stutter go away (warming up)
-
-The first sessions with a new build stutter, and can drop to 1 fps when new
-places appear, while the NVIDIA driver compiles the game's pipelines. The
-launcher writes down every pipeline the game makes. After a session or two,
-build them all ahead of time:
-
-```powershell
-cd "$HOME\VI-3080"
-$env:VICTORY_HOST_WAVE = '32'
-target\release\victory.exe warm
-```
-
-This can take a long time, because there are tens of thousands of pipelines.
-Do it again after every rebuild, after a driver update, or if you move the
-folder: the driver keeps its pipelines per program path.
 
 ## Launcher options
 
@@ -247,7 +278,7 @@ On the RTX 3080 10 GB, Ryzen 7 9800X3D and 32 GB PC, Series X profile at
 | "running scripts is disabled on this system" | start scripts the way shown above: `powershell -ExecutionPolicy Bypass -File ...` |
 | `No game_dir in victory.toml` | run `setup-3080.ps1`, or pass `-Exe <path of game_scarlett_master.exe>` |
 | the game crashes at start, with NGX or `0xC0000005` in the log | the RTX 30 DLSS workaround above, or play with `-Dlss off` |
-| heavy stutter, 1 fps moments | warm up the pipelines (above); the first session after every build is slow |
+| heavy stutter, 1 fps moments | build the shaders: [Building the shaders before you play](#building-the-shaders-before-you-play) |
 | black or missing textures, pop-in | `-TextureCap 1024` |
 | everything stutters and the shader cache seems to be ignored | don't run PowerShell as administrator: the driver keeps its cache per user |
 | asking for help | attach the newest `%LOCALAPPDATA%\victory\logs\foxhound-*.log` |
@@ -260,7 +291,8 @@ git pull
 cargo build --release --locked -p victory
 ```
 
-Then warm up the pipelines again (see above).
+Then run `target\release\victory.exe warm` again: it rebuilds only what changed
+(see [Building the shaders before you play](#building-the-shaders-before-you-play)).
 
 ## Credits and license (vi-3080)
 

@@ -124,7 +124,7 @@ Ok "built $(Join-Path $repo 'target\release\victory.exe')"
 Write-Host ''
 Write-Host 'Ready. To play (from this folder, in a normal PowerShell window):' -ForegroundColor Cyan
 Write-Host '  powershell -ExecutionPolicy Bypass -File scripts\play-3080.ps1'
-Write-Host 'The first sessions stutter while the driver compiles pipelines; the README says how to make them ahead.'
+Write-Host 'Next: start the game once to record its shaders, then build them all ahead (README: Building the shaders before you play).'
 if ($Play) {
     Step '6. Starting the game'
     & (Join-Path $repo 'scripts\play-3080.ps1')
