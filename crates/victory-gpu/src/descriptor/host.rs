@@ -5089,17 +5089,30 @@ fn make_twinned(
 /// on (`crate::resource::held_only`). What it shows of larger ones, if any,
 /// is left out.
 fn from_base(desc: &mut D3D12_SHADER_RESOURCE_VIEW_DESC, base: u32) {
-    if desc.ViewDimension != D3D12_SRV_DIMENSION_TEXTURE2D {
-        return;
+    fn shift(most: &mut u32, mips: &mut u32, min_lod: &mut f32, base: u32) {
+        let lost = base.saturating_sub(*most);
+        *most = most.saturating_sub(base);
+        if *mips != u32::MAX {
+            *mips = mips.saturating_sub(lost).max(1);
+        }
+        *min_lod = (*min_lod - base as f32).max(0.0);
     }
-    // SAFETY: the member its dimension says.
-    let t = unsafe { &mut desc.Anonymous.Texture2D };
-    let lost = base.saturating_sub(t.MostDetailedMip);
-    t.MostDetailedMip = t.MostDetailedMip.saturating_sub(base);
-    if t.MipLevels != u32::MAX {
-        t.MipLevels = t.MipLevels.saturating_sub(lost).max(1);
+    match desc.ViewDimension {
+        D3D12_SRV_DIMENSION_TEXTURE2D => {
+            // SAFETY: the member its dimension says.
+            let t = unsafe { &mut desc.Anonymous.Texture2D };
+            shift(&mut t.MostDetailedMip, &mut t.MipLevels, &mut t.ResourceMinLODClamp, base);
+        }
+        // (vi-3080) An array view of a one-layer texture: the texture cap
+        // gives far more copies a later first level than held levels did
+        // (after KLBF fccf50f's `capped_srv`).
+        D3D12_SRV_DIMENSION_TEXTURE2DARRAY => {
+            // SAFETY: the member its dimension says.
+            let t = unsafe { &mut desc.Anonymous.Texture2DArray };
+            shift(&mut t.MostDetailedMip, &mut t.MipLevels, &mut t.ResourceMinLODClamp, base);
+        }
+        _ => {}
     }
-    t.ResourceMinLODClamp = (t.ResourceMinLODClamp - base as f32).max(0.0);
 }
 
 /// Writes of a slot with another view of the placed texture it showed,
